@@ -5,9 +5,9 @@
 package akka.persistence.r2dbc.internal.sqlserver
 
 import akka.annotation.InternalApi
-import akka.persistence.r2dbc.internal.InstantFactory
+import akka.persistence.r2dbc.internal.{ DurableStateDao, InstantFactory }
 import com.typesafe.config.Config
-import io.r2dbc.spi.Row
+import io.r2dbc.spi.{ Row, Statement }
 
 import java.time.Instant
 import java.time.LocalDateTime
@@ -56,5 +56,12 @@ private[r2dbc] class SqlServerDialectHelper(config: Config) {
   def fromDbTimestamp(time: LocalDateTime): Instant = time
     .atZone(zone)
     .toInstant
+
+  def bindTags(stmt: Statement, name: Int, state: DurableStateDao.SerializedStateRow): Statement = {
+    if (state.tags.isEmpty)
+      stmt.bindNull(name, classOf[String])
+    else
+      stmt.bind(name, tagsToDb(state.tags))
+  }
 
 }
