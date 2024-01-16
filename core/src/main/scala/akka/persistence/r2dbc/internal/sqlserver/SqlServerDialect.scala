@@ -70,7 +70,7 @@ private[r2dbc] object SqlServerDialect extends Dialect {
             .option(ConnectionFactoryOptions.DATABASE, settings.database)
             .option(ConnectionFactoryOptions.DATABASE, settings.database)
             .option(ConnectionFactoryOptions.CONNECT_TIMEOUT, JDuration.ofMillis(settings.connectTimeout.toMillis))
-        //.option(io.r2dbc.spi.Option.valueOf("preferCursoredExecution"), true) // optional
+            .option(io.r2dbc.spi.Option.valueOf("preferCursoredExecution"), true) // optional
       }
     }
     println("jeppo")

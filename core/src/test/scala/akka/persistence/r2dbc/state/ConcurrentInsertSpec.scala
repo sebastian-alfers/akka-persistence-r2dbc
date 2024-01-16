@@ -17,6 +17,7 @@ import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.{ Await, Future }
 import scala.concurrent.duration._
+import scala.util.{ Failure, Success }
 
 class ConcurrentInsertSpec
     extends ScalaTestWithActorTestKit(
@@ -64,15 +65,26 @@ class ConcurrentInsertSpec
 
       val pids = 0 until 100
       val inserts: Seq[Future[Long]] = pids.map { pid =>
+        println(s"insert $pid")
         r2dbcExecutor.updateOne(s"insert into $customTable")(sf => {
           sf.createStatement(s"insert into $customTable (pid, rev, the_value) VALUES(@pid, @rev, @theValue)")
-            .bind("@pid", "abc")
+            .bind("@pid", pid.toString)
             .bind("@rev", 123)
             .bind("@theValue", "def")
         })
       }
 
-      Future.sequence(inserts).futureValue.size shouldBe (pids.size)
+      val fut = Future.sequence(inserts)
+
+      fut.onComplete {
+        case Failure(exception) =>
+          println(s"error: ${exception.getMessage}")
+          exception.printStackTrace()
+          true shouldBe false
+        case Success(value) => println("ok")
+      }
+      val size = fut.futureValue.size
+      size shouldBe pids.size
     }
   }
 }

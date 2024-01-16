@@ -31,7 +31,7 @@ object Dependencies {
 
     // we have to stick to this version for now: https://github.com/r2dbc/r2dbc-mssql/issues/276
     // bumping to 1.0.1.RELEASE or later currently requires pool config initial-size=1 and max-size=1
-    val r2dbcSqlServer = "io.r2dbc" % "r2dbc-mssql" % "1.0.0.RELEASE" % Provided // ApacheV2
+    val r2dbcSqlServer = "io.r2dbc" % "r2dbc-mssql" % "1.0.2.RELEASE" % Provided // ApacheV2
   }
 
   object TestDeps {
