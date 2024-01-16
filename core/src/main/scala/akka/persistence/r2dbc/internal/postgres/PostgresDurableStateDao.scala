@@ -7,14 +7,12 @@ package akka.persistence.r2dbc.internal.postgres
 import java.lang
 import java.time.Instant
 import java.util
-
 import scala.collection.immutable
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import scala.concurrent.duration.Duration
 import scala.concurrent.duration.FiniteDuration
 import scala.util.control.NonFatal
-
 import io.r2dbc.spi.Connection
 import io.r2dbc.spi.ConnectionFactory
 import io.r2dbc.spi.R2dbcDataIntegrityViolationException
@@ -22,7 +20,6 @@ import io.r2dbc.spi.Row
 import io.r2dbc.spi.Statement
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-
 import akka.Done
 import akka.NotUsed
 import akka.actor.typed.ActorSystem
@@ -47,8 +44,11 @@ import akka.persistence.r2dbc.internal.JournalDao.SerializedJournalRow
 import akka.persistence.r2dbc.internal.PayloadCodec
 import akka.persistence.r2dbc.internal.PayloadCodec.RichRow
 import akka.persistence.r2dbc.internal.PayloadCodec.RichStatement
+import akka.persistence.r2dbc.internal.codec.TagsCodec.RichTagsCodecStatement
 import akka.persistence.r2dbc.internal.R2dbcExecutor
 import akka.persistence.r2dbc.internal.Sql.Interpolation
+import akka.persistence.r2dbc.internal.codec.{ TagsCodec, TimestampCodec }
+import akka.persistence.r2dbc.internal.codec.TimestampCodec.TimestampRichStatement
 import akka.persistence.r2dbc.session.scaladsl.R2dbcSession
 import akka.persistence.r2dbc.state.ChangeHandlerException
 import akka.persistence.r2dbc.state.scaladsl.AdditionalColumn
@@ -64,7 +64,7 @@ private[r2dbc] object PostgresDurableStateDao {
 
   private val log: Logger = LoggerFactory.getLogger(classOf[PostgresDurableStateDao])
 
-  private final case class EvaluatedAdditionalColumnBindings(
+  final case class EvaluatedAdditionalColumnBindings(
       additionalColumn: AdditionalColumn[_, _],
       binding: AdditionalColumn.Binding[_])
 
@@ -93,6 +93,8 @@ private[r2dbc] class PostgresDurableStateDao(
     settings.connectionFactorySettings.poolSettings.closeCallsExceeding)(ec, system)
 
   private implicit val statePayloadCodec: PayloadCodec = settings.durableStatePayloadCodec
+  protected implicit val tagsCodec: TagsCodec = settings.tagsCodec
+  protected implicit val timestampCodec: TimestampCodec = settings.timestampCodec
 
   // used for change events
   private lazy val journalDao: JournalDao = dialect.createJournalDao(settings, connectionFactory)
@@ -111,7 +113,7 @@ private[r2dbc] class PostgresDurableStateDao(
     }
   }
 
-  private def selectStateSql(entityType: String): String = {
+  protected def selectStateSql(entityType: String): String = {
     val stateTable = settings.getDurableStateTableWithSchema(entityType)
     sql"""
     SELECT revision, state_ser_id, state_ser_manifest, state_payload, db_timestamp
@@ -133,7 +135,7 @@ private[r2dbc] class PostgresDurableStateDao(
   protected def sliceCondition(minSlice: Int, maxSlice: Int): String =
     s"slice in (${(minSlice to maxSlice).mkString(",")})"
 
-  private def insertStateSql(
+  protected def insertStateSql(
       entityType: String,
       additionalBindings: immutable.IndexedSeq[EvaluatedAdditionalColumnBindings]): String = {
     val stateTable = settings.getDurableStateTableWithSchema(entityType)
@@ -145,7 +147,7 @@ private[r2dbc] class PostgresDurableStateDao(
     VALUES (?, ?, ?, ?, ?, ?, ?, ?$additionalParams, CURRENT_TIMESTAMP)"""
   }
 
-  private def additionalInsertColumns(
+  protected def additionalInsertColumns(
       additionalBindings: immutable.IndexedSeq[EvaluatedAdditionalColumnBindings]): String = {
     if (additionalBindings.isEmpty) ""
     else {
@@ -161,7 +163,7 @@ private[r2dbc] class PostgresDurableStateDao(
     }
   }
 
-  private def additionalInsertParameters(
+  protected def additionalInsertParameters(
       additionalBindings: immutable.IndexedSeq[EvaluatedAdditionalColumnBindings]): String = {
     if (additionalBindings.isEmpty) ""
     else {
@@ -326,11 +328,20 @@ private[r2dbc] class PostgresDurableStateDao(
       changeEvent: Option[SerializedJournalRow]): Future[Option[Instant]] = {
     require(state.revision > 0)
 
+    // could move this logic into the codec
     def bindTags(stmt: Statement, i: Int): Statement = {
       if (state.tags.isEmpty)
-        stmt.bindNull(i, classOf[Array[String]])
+        stmt.bindTagsNull(i)
       else
-        stmt.bind(i, state.tags.toArray)
+        stmt.bindTags(i, state.tags)
+    }
+
+    // could move this logic into the codec
+    def bindTagsStr(stmt: Statement, name: String): Statement = {
+      if (state.tags.isEmpty)
+        stmt.bindTagsNull(name)
+      else
+        stmt.bindTags(name, state.tags)
     }
 
     var i = 0
@@ -372,15 +383,20 @@ private[r2dbc] class PostgresDurableStateDao(
         def insertStatement(connection: Connection): Statement = {
           val stmt = connection
             .createStatement(insertStateSql(entityType, additionalBindings))
-            .bind(getAndIncIndex(), slice)
-            .bind(getAndIncIndex(), entityType)
-            .bind(getAndIncIndex(), state.persistenceId)
-            .bind(getAndIncIndex(), state.revision)
-            .bind(getAndIncIndex(), state.serId)
-            .bind(getAndIncIndex(), state.serManifest)
-            .bindPayloadOption(getAndIncIndex(), state.payload)
-          bindTags(stmt, getAndIncIndex())
+            .bind("@slice", slice)
+            .bind("@entityType", entityType)
+            .bind("@persistenceId", state.persistenceId)
+            .bind("@revision", state.revision)
+            .bind("@stateSerId", state.serId)
+            .bind("@stateSerManifest", state.serManifest)
+            .bindPayloadOption("@statePayload", state.payload)
+          bindTagsStr(stmt, "@tags")
           bindAdditionalColumns(stmt, additionalBindings)
+
+          // this is ONLY for sqlserver
+          val now = timestampCodec.instantNow()
+          println(s"alf now $now")
+          stmt.bindTimestamp("@now", now)
         }
 
         def recoverDataIntegrityViolation[A](f: Future[A]): Future[A] =

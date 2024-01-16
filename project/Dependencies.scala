@@ -28,6 +28,10 @@ object Dependencies {
 
     val h2 = "com.h2database" % "h2" % H2Version % Provided // EPL 1.0
     val r2dbcH2 = "io.r2dbc" % "r2dbc-h2" % R2dbcH2Version % Provided // ApacheV2
+
+    // we have to stick to this version for now: https://github.com/r2dbc/r2dbc-mssql/issues/276
+    // bumping to 1.0.1.RELEASE or later currently requires pool config initial-size=1 and max-size=1
+    val r2dbcSqlServer = "io.r2dbc" % "r2dbc-mssql" % "1.0.0.RELEASE" % Provided // ApacheV2
   }
 
   object TestDeps {
@@ -57,6 +61,7 @@ object Dependencies {
     r2dbcPostgres,
     h2,
     r2dbcH2,
+    r2dbcSqlServer,
     TestDeps.akkaPersistenceTck,
     TestDeps.akkaStreamTestkit,
     TestDeps.akkaTestkit,

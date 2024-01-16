@@ -30,6 +30,7 @@ inThisBuild(
     // append -SNAPSHOT to version when isSnapshot
     dynverSonatypeSnapshots := true,
     resolvers += "Akka library repository".at("https://repo.akka.io/maven"),
+    resolvers ++= Opts.resolver.sonatypeOssSnapshots,
     // add snapshot repo when Akka version overriden
     resolvers ++=
       (if (System.getProperty("override.akka.version") != null)
@@ -139,7 +140,9 @@ lazy val docs = project
     Preprocess / siteSubdirName := s"api/akka-persistence-r2dbc/${projectInfoVersion.value}",
     Preprocess / sourceDirectory := (LocalRootProject / ScalaUnidoc / unidoc / target).value,
     Paradox / siteSubdirName := s"docs/akka-persistence-r2dbc/${projectInfoVersion.value}",
-    paradoxGroups := Map("Language" -> Seq("Java", "Scala"), "Dialect" -> Seq("Postgres", "Yugabyte", "H2")),
+    paradoxGroups := Map(
+      "Language" -> Seq("Java", "Scala"),
+      "Dialect" -> Seq("Postgres", "Yugabyte", "SQL Server", "H2")),
     Compile / paradoxProperties ++= Map(
       "project.url" -> "https://doc.akka.io/docs/akka-persistence-r2dbc/current/",
       "canonical.base_url" -> "https://doc.akka.io/docs/akka-persistence-r2dbc/current",

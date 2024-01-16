@@ -42,7 +42,16 @@ import io.r2dbc.spi.Statement
     def bindPayload(index: Int, payload: Array[Byte]): Statement =
       statement.bind(index, codec.encode(payload))
 
+    def bindPayload(index: String, payload: Array[Byte]): Statement =
+      statement.bind(index, codec.encode(payload))
+
     def bindPayloadOption(index: Int, payloadOption: Option[Array[Byte]]): Statement =
+      payloadOption match {
+        case Some(payload) => bindPayload(index, payload)
+        case None          => bindPayload(index, codec.nonePayload)
+      }
+
+    def bindPayloadOption(index: String, payloadOption: Option[Array[Byte]]): Statement =
       payloadOption match {
         case Some(payload) => bindPayload(index, payload)
         case None          => bindPayload(index, codec.nonePayload)

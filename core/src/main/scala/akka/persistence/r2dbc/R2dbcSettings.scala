@@ -8,6 +8,7 @@ import akka.annotation.InternalApi
 import akka.annotation.InternalStableApi
 import akka.persistence.r2dbc.internal.ConnectionFactorySettings
 import akka.persistence.r2dbc.internal.PayloadCodec
+import akka.persistence.r2dbc.internal.codec.{ TagsCodec, TimestampCodec }
 import akka.util.JavaDurationConverters._
 import com.typesafe.config.Config
 
@@ -85,6 +86,20 @@ object R2dbcSettings {
 
     val querySettings = new QuerySettings(config.getConfig("query"))
 
+    val tagsCodec: TagsCodec = {
+      connectionFactorySettings.dialect.name match {
+        case "sqlserver" => new TagsCodec.SqlServerTagsCodec(connectionFactorySettings.config)
+        case _           => TagsCodec.PostgresTagsCodec
+      }
+    }
+
+    val timestampCodec: TimestampCodec = {
+      connectionFactorySettings.dialect.name match {
+        case "sqlserver" => TimestampCodec.SqlServerTimestampCodec
+        case _           => TimestampCodec.PostgresTimestampCodec
+      }
+    }
+
     val dbTimestampMonotonicIncreasing: Boolean = config.getBoolean("db-timestamp-monotonic-increasing")
 
     val useAppTimestamp: Boolean = config.getBoolean("use-app-timestamp")
@@ -103,6 +118,8 @@ object R2dbcSettings {
       journalPublishEvents,
       snapshotsTable,
       snapshotPayloadCodec,
+      tagsCodec,
+      timestampCodec,
       durableStateTable,
       durableStatePayloadCodec,
       durableStateAssertSingleWriter,
@@ -137,6 +154,8 @@ final class R2dbcSettings private (
     val journalPublishEvents: Boolean,
     val snapshotsTable: String,
     val snapshotPayloadCodec: PayloadCodec,
+    val tagsCodec: TagsCodec,
+    val timestampCodec: TimestampCodec,
     val durableStateTable: String,
     val durableStatePayloadCodec: PayloadCodec,
     val durableStateAssertSingleWriter: Boolean,
@@ -215,6 +234,8 @@ final class R2dbcSettings private (
       journalPublishEvents: Boolean = journalPublishEvents,
       snapshotsTable: String = snapshotsTable,
       snapshotPayloadCodec: PayloadCodec = snapshotPayloadCodec,
+      tagsCodec: TagsCodec = tagsCodec,
+      timestampCodec: TimestampCodec = timestampCodec,
       durableStateTable: String = durableStateTable,
       durableStatePayloadCodec: PayloadCodec = durableStatePayloadCodec,
       durableStateAssertSingleWriter: Boolean = durableStateAssertSingleWriter,
@@ -235,6 +256,8 @@ final class R2dbcSettings private (
       journalPublishEvents,
       snapshotsTable,
       snapshotPayloadCodec,
+      tagsCodec,
+      timestampCodec,
       durableStateTable,
       durableStatePayloadCodec,
       durableStateAssertSingleWriter,
