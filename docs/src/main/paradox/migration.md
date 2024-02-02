@@ -56,13 +56,17 @@ The migration tool can be run as main class `akka.persistence.r2dbc.migration.Mi
 
 Durable State is not migrated by `MigrationTool.migrateAll`, instead you need to use `MigrationTool.migrateDurableStates` for a given list of persistence ids.
 
-@@@ note
+@@@
 
 ## Configuration
 
 You need to provide configuration for the source persistence plugin and the target Rd2BC plugin in your `application.conf`. An example of such configuration for migration from Akka Persistence JDBC: 
 
-@@snip [application-postgres.conf](/migration-tests/src/test/resources/application-postgres.conf)
+Postgres:
+: @@snip [application-postgres.conf](/migration-tests/src/test/resources/application-postgres.conf)
+
+SQLServer:
+: @@snip [application-sqlserver.conf](/migration-tests/src/test/resources/application-sqlserver.conf)
 
 @@@ note
 
